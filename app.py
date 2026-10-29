@@ -1,4 +1,5 @@
 """Football value-betting dashboard.  Run with:  streamlit run app.py"""
+import datetime as dt
 import os
 
 import pandas as pd
@@ -23,7 +24,10 @@ def get_ratings():
 eng = get_engine()
 R = get_ratings()
 TEAMS = R["teams"]
-NAMES = sorted(TEAMS, key=lambda t: (ratings.LEAGUE_NAMES.get(TEAMS[t]["league"], "z"), t))
+# Only teams that played recently (hides relegated clubs and old spellings from the historical data)
+_cut = (dt.date.fromisoformat(max(d["last_date"] for d in TEAMS.values())) - dt.timedelta(days=45)).isoformat()
+NAMES = sorted((t for t in TEAMS if TEAMS[t]["last_date"] >= _cut),
+               key=lambda t: (ratings.LEAGUE_NAMES.get(TEAMS[t]["league"], "z"), t))
 
 
 def label(t):
