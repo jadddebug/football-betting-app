@@ -1,4 +1,4 @@
-"""Football value-betting dashboard.  Run with:  streamlit run app.py"""
+"""Football match prediction dashboard.  Run with:  streamlit run app.py"""
 import datetime as dt
 import os
 
@@ -8,7 +8,7 @@ import streamlit as st
 import ratings
 from engine import Engine, value_table, EV_THRESHOLD
 
-st.set_page_config(page_title="Football Value Engine", page_icon="⚽", layout="wide")
+st.set_page_config(page_title="Football Match Predictor", page_icon="⚽", layout="wide")
 
 
 @st.cache_resource
@@ -37,9 +37,11 @@ def label(t):
 def team_info(t):
     d = TEAMS[t]
     return f"Last 5: {' '.join(d['results']) or 'n/a'} (rating as of {d['last_date']})"
-st.title("⚽ Football Value-Betting Engine")
-st.caption("Three-model outcome blend + Poisson goal model. Flags a bet when expected value is above "
-           f"{EV_THRESHOLD:.0%}. For information only; no prediction is a guarantee.")
+st.title("⚽ Football Match Predictor")
+st.caption("Three-model outcome blend + Poisson goal model. A market is highlighted when the model's chance "
+           f"is high enough that its expected value at the bookmaker's odds is above {EV_THRESHOLD:.0%}, "
+           "meaning the model disagrees with the bookmaker. Backtests on past matches found no proven "
+           "betting edge, so treat this as information, not advice.")
 
 tab1, tab2 = st.tabs(["Single match", "Daily scanner"])
 
@@ -94,15 +96,19 @@ with tab1:
         st.write(f"Expected goals: **{home} {res['xg_home']:.2f}**, **{away} {res['xg_away']:.2f}**")
 
         vt = value_table(res, o_h, o_d, o_a, o_o)
-        st.dataframe(vt.style.format({"Model prob": "{:.1%}", "Fair odds": "{:.2f}", "EV": "{:+.1%}"})
-                     .apply(lambda r: ["background-color:#14532d" if r["Value bet"] else "" for _ in r], axis=1),
+        shown = vt.rename(columns={"Value bet": "Model disagrees", "EV": "Expected value"})
+        st.dataframe(shown.style.format({"Model prob": "{:.1%}", "Bookmaker odds": "{:.2f}",
+                                         "Fair odds": "{:.2f}", "Expected value": "{:+.1%}"})
+                     .apply(lambda r: ["background-color:#14532d" if r["Model disagrees"] else "" for _ in r],
+                            axis=1),
                      use_container_width=True, hide_index=True)
         if vt["Value bet"].any():
             best = vt.loc[vt["EV"].idxmax()]
-            st.success(f"Value found: **{best['Market']}** at {best['Bookmaker odds']} "
-                       f"(expected value {best['EV']:+.1%})")
+            st.info(f"The model disagrees with the bookmaker most on **{best['Market']}** at "
+                    f"{best['Bookmaker odds']:.2f} (expected value {best['EV']:+.1%}). "
+                    "Backtests found that this kind of disagreement is not a reliable edge.")
         else:
-            st.info("No market clears the value threshold for this match.")
+            st.info("The model broadly agrees with the bookmaker on this match.")
 
 # ---------------------------------------------------------------- Tab 2
 with tab2:
@@ -112,10 +118,12 @@ with tab2:
         if slate.empty:
             st.info("The pipeline ran but found no fixtures with complete odds today.")
         else:
-            only_value = st.checkbox("Show value bets only", value=True)
+            only_value = st.checkbox("Only matches where the model disagrees with the bookmaker", value=True)
             view = slate[slate["ValueBet"]] if only_value else slate
-            st.caption(f"{len(slate)} fixtures scored, {int(slate['ValueBet'].sum())} flagged as value.")
-            st.dataframe(view, use_container_width=True, hide_index=True)
+            st.caption(f"{len(slate)} fixtures scored, {int(slate['ValueBet'].sum())} where the model disagrees "
+                       "with the bookmaker by more than 5%. Backtests found no proven edge in these.")
+            st.dataframe(view.rename(columns={"ValueBet": "ModelDisagrees"}),
+                         use_container_width=True, hide_index=True)
             if not slate["RatingsFound"].all():
                 st.warning("Some teams weren't found in matches.csv and used average ratings. "
                            "Treat those rows with caution.")
@@ -151,7 +159,7 @@ with tab2:
                             "P_BTTS": round(res["p_btts"], 3), "P_HT_Home": round(res["p_ht_home"], 3),
                             "P_HT_Draw": round(res["p_ht_draw"], 3), "P_HT_Away": round(res["p_ht_away"], 3),
                             "BestMarket": best["Market"],
-                            "BestEV": round(best["EV"], 3), "ValueBet": bool(best["Value bet"])})
+                            "BestEV": round(best["EV"], 3), "ModelDisagrees": bool(best["Value bet"])})
             result = pd.DataFrame(out)
             st.dataframe(result, use_container_width=True, hide_index=True)
             st.download_button("Download results", result.to_csv(index=False), "predictions.csv")

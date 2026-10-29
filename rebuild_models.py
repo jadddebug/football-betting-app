@@ -17,7 +17,6 @@ import pandas as pd
 import xgboost as xgb
 from catboost import CatBoostClassifier
 from sklearn.metrics import accuracy_score
-from sklearn.utils.class_weight import compute_sample_weight
 
 import features as F
 
@@ -61,7 +60,7 @@ ytr, yte = train["Target"].astype(int), test["Target"].astype(int)
 def fit_outcome_models(feats):
     xgb_clf = xgb.XGBClassifier(n_estimators=200, max_depth=4, learning_rate=0.03, subsample=0.8,
                                 colsample_bytree=0.8, random_state=42, eval_metric="mlogloss")
-    xgb_clf.fit(train[feats], ytr, sample_weight=compute_sample_weight("balanced", ytr))
+    xgb_clf.fit(train[feats], ytr)  # no class balancing: learn from the real mix of results
     lgb_clf = lgb.LGBMClassifier(n_estimators=200, max_depth=4, learning_rate=0.03,
                                  random_state=42, verbose=-1).fit(train[feats], ytr)
     cat_clf = CatBoostClassifier(iterations=200, depth=4, learning_rate=0.03,
