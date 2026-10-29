@@ -63,8 +63,13 @@ class Engine:
         g = np.arange(7)
         M = np.outer(poisson.pmf(g, lam_h), poisson.pmf(g, lam_a))
         M /= M.sum()
-        i, j = np.unravel_index(M.argmax(), M.shape)
         I, J = np.meshgrid(g, g, indexing="ij")
+        # Best score that agrees with the predicted result (home win / draw / away win)
+        mask = max((p_home, I > J), (p_draw, I == J), (p_away, I < J), key=lambda t: t[0])[1]
+        i, j = np.unravel_index(np.where(mask, M, -1).argmax(), M.shape)
+        # The 5 most likely scores overall
+        top = [(f"{a}-{b}", float(M[a, b]))
+               for a, b in (np.unravel_index(k, M.shape) for k in np.argsort(M, axis=None)[::-1][:5])]
         # Half-time: same idea with the half-time goal models
         lh_ht = max(0.05, float(self.reg_home_ht.predict(X)[0]))
         la_ht = max(0.05, float(self.reg_away_ht.predict(X)[0]))
@@ -72,7 +77,7 @@ class Engine:
         H /= H.sum()
         return dict(p_home=p_home, p_draw=p_draw, p_away=p_away,
                     xg_home=lam_h, xg_away=lam_a, score=f"{i}-{j}",
-                    score_prob=float(M[i, j]), p_over25=float(M[(I + J) > 2].sum()),
+                    score_prob=float(M[i, j]), top_scores=top, p_over25=float(M[(I + J) > 2].sum()),
                     p_btts=float(M[1:, 1:].sum()),
                     p_ht_home=float(H[I > J].sum()), p_ht_draw=float(H[I == J].sum()),
                     p_ht_away=float(H[I < J].sum()))
