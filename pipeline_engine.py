@@ -22,7 +22,7 @@ def update_ratings(R):
         return 0
     games = fd.new_results(last, end)
     for date, home, away, hg, ag, div in games:
-        ratings.apply_result(R["teams"], home, away, hg, ag, date, div)
+        ratings.apply_result(R, home, away, hg, ag, date, div)
     R["updated_through"] = str(end)
     return len(games)
 
@@ -44,10 +44,13 @@ def main():
     today = dt.datetime.now(dt.timezone.utc).date()
     rows = []
     for fx in fd.upcoming(today, days=3):
-        h_elo, h_form, h_ok = rating_of(fx["home_team"], R["teams"])
-        a_elo, a_form, a_ok = rating_of(fx["away_team"], R["teams"])
+        hn = ratings.resolve(fx["home_team"], R["teams"])
+        an = ratings.resolve(fx["away_team"], R["teams"])
+        h_elo, h_form, h_ok = rating_of(hn, R["teams"])
+        a_elo, a_form, a_ok = rating_of(an, R["teams"])
         res = eng.run(home_elo=h_elo, away_elo=a_elo, form5_home=h_form, form5_away=a_form,
-                      odd_home=fx["home"], odd_draw=fx["draw"], odd_away=fx["away"], over25=fx["over25"])
+                      odd_home=fx["home"], odd_draw=fx["draw"], odd_away=fx["away"], over25=fx["over25"],
+                      extra=ratings.extras(R, hn, an))
         vt = value_table(res, fx["home"], fx["draw"], fx["away"], fx["over25"])
         best = vt.loc[vt["EV"].idxmax()]
         rows.append({

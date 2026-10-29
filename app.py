@@ -71,7 +71,8 @@ with tab1:
 
     if st.button("Predict", type="primary"):
         res = eng.run(home_elo=h_elo, away_elo=a_elo, form5_home=h_form, form5_away=a_form,
-                      odd_home=o_h, odd_draw=o_d, odd_away=o_a, over25=o_o)
+                      odd_home=o_h, odd_draw=o_d, odd_away=o_a, over25=o_o,
+                      extra=ratings.extras(R, home, away))
         st.subheader(f"{home} vs {away}")
         m = st.columns(5)
         m[0].metric("Home win", f"{res['p_home']:.1%}")
@@ -84,6 +85,11 @@ with tab1:
         m2[1].metric("Half-time: draw", f"{res['p_ht_draw']:.1%}")
         m2[2].metric("Half-time: away ahead", f"{res['p_ht_away']:.1%}")
         m2[3].metric("Both teams to score", f"{res['p_btts']:.1%}")
+        x = ratings.extras(R, home, away)
+        w, d, l, n = ratings.h2h_summary(R, home, away)
+        st.caption(f"Goals per match, last 5: {home} scored {x['GF5Home']:.1f}, conceded {x['GA5Home']:.1f} | "
+                   f"{away} scored {x['GF5Away']:.1f}, conceded {x['GA5Away']:.1f}. "
+                   + (f"Head-to-head (last {n}): {home} {w}W {d}D {l}L." if n else "No recent head-to-head found."))
         st.caption("Most likely scores overall: " + ", ".join(f"{s} ({p:.1%})" for s, p in res["top_scores"]))
         st.write(f"Expected goals: **{home} {res['xg_home']:.2f}**, **{away} {res['xg_away']:.2f}**")
 
@@ -134,7 +140,8 @@ with tab2:
             for _, r in df.iterrows():
                 res = eng.run(home_elo=r.HomeElo, away_elo=r.AwayElo, form5_home=r.Form5Home,
                               form5_away=r.Form5Away, odd_home=r.OddHome, odd_draw=r.OddDraw,
-                              odd_away=r.OddAway, over25=r.Over25)
+                              odd_away=r.OddAway, over25=r.Over25,
+                              extra=ratings.extras(R, r.HomeTeam, r.AwayTeam))
                 vt = value_table(res, r.OddHome, r.OddDraw, r.OddAway, r.Over25)
                 best = vt.loc[vt["EV"].idxmax()]
                 out.append({"Home": r.HomeTeam, "Away": r.AwayTeam,

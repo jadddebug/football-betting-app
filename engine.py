@@ -17,7 +17,10 @@ def _p(name):
 
 class Engine:
     def __init__(self):
-        self.features = json.load(open(_p("features.json")))
+        feats = json.load(open(_p("features.json")))
+        if isinstance(feats, list):  # older format: one list for everything
+            feats = {"all": feats, "clf": feats, "goal": feats}
+        self.features, self.feat_clf, self.feat_goal = feats["all"], feats["clf"], feats["goal"]
         self.defaults = json.load(open(_p("feature_defaults.json")))
         self.w = json.load(open(_p("blend.json")))
         self.xgb = xgb.XGBClassifier()
@@ -35,7 +38,7 @@ class Engine:
         self.reg_away_ht.load_model(_p("reg_away_ht.json"))
 
     def build_row(self, home_elo, away_elo, form5_home, form5_away,
-                  odd_home, odd_draw, odd_away, over25, under25=None):
+                  odd_home, odd_draw, odd_away, over25, under25=None, extra=None):
         r = dict(self.defaults)  # start from typical values, then overwrite what we know
         if under25 is None:
             rest = 1.05 - 1 / over25
@@ -51,12 +54,15 @@ class Engine:
             Form5Difference=form5_home - form5_away,
             BookmakerMargin=1 / odd_home + 1 / odd_draw + 1 / odd_away - 1,
         )
+        if extra:  # head-to-head, goal stats and exact last-3 form for this match
+            r.update(extra)
         return pd.DataFrame([[r[f] for f in self.features]], columns=self.features)
 
     def predict(self, X):
-        probs = (self.w["xgb"] * self.xgb.predict_proba(X)
-                 + self.w["lgb"] * self.lgb.predict_proba(X)
-                 + self.w["cat"] * self.cat.predict_proba(X))[0]
+        Xc, X = X[self.feat_clf], X[self.feat_goal]  # each group of models gets its own stats
+        probs = (self.w["xgb"] * self.xgb.predict_proba(Xc)
+                 + self.w["lgb"] * self.lgb.predict_proba(Xc)
+                 + self.w["cat"] * self.cat.predict_proba(Xc))[0]
         p_draw, p_home, p_away = (float(v) for v in probs)  # class order: 0=Draw, 1=Home, 2=Away
         lam_h = max(0.05, float(self.reg_home.predict(X)[0]))
         lam_a = max(0.05, float(self.reg_away.predict(X)[0]))
