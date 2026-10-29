@@ -41,8 +41,8 @@ tab1, tab2 = st.tabs(["Single match", "Daily scanner"])
 
 # ---------------------------------------------------------------- Tab 1
 with tab1:
-    st.caption("Ratings through " + str(R.get("updated_through") or R["base_date"])
-               + ". Click a team box and start typing to search.")
+    newest = max(d["last_date"] for d in TEAMS.values())
+    st.caption(f"Newest match in the ratings: {newest}. Click a team box and start typing to search.")
     c1, c2 = st.columns(2)
     home = c1.selectbox("Home team", NAMES, index=None, format_func=label, placeholder="Type a team name...")
     away = c2.selectbox("Away team", NAMES, index=None, format_func=label, placeholder="Type a team name...")

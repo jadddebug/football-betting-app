@@ -23,7 +23,10 @@ COLUMNS = ["Date", "League", "Home", "Away", "P_Home", "P_Draw", "P_Away", "xG_H
 def api(path, **params):
     r = requests.get(BASE + path, headers={"x-apisports-key": KEY}, params=params, timeout=30)
     r.raise_for_status()
-    return r.json()
+    data = r.json()
+    if data.get("errors"):  # API-Football reports plan/limit problems here, with a normal 200 reply
+        sys.exit(f"API-Football refused the request {path} {params}: {data['errors']}")
+    return data
 
 
 def season_of(d):
@@ -42,6 +45,7 @@ def update_ratings(R):
         for lid, (_, code) in LEAGUES.items():
             data = api("/fixtures", league=lid, season=season, status="FT",
                        **{"from": str(start), "to": str(end)})
+            print(f"  {lid} season {season}: {len(data['response'])} finished matches returned")
             for f in data["response"]:
                 fid = f["fixture"]["id"]
                 if fid in done or f["goals"]["home"] is None:
